@@ -1,0 +1,639 @@
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Control de Horas - Gestiones</title>
+<!-- Minimal dark style -->
+<style>
+  :root{
+    --bg:#121216;
+    --card:#1c1c20;
+    --muted:#9aa0a6;
+    --accent:#2dd4bf;
+    --btn:#2fb26f;
+    --danger:#e15757;
+    --blue:#3a6ea5;
+    --glass: rgba(255,255,255,0.03);
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,Helvetica,sans-serif;background:linear-gradient(180deg,var(--bg),#0f0f12);color:#eaeaf0}
+  header{padding:18px 16px;text-align:center;background:linear-gradient(90deg,rgba(255,255,255,0.02),transparent);box-shadow:0 1px 0 rgba(255,255,255,0.02) inset}
+  header h1{margin:0;font-size:18px;letter-spacing:0.2px}
+  main{padding:12px;max-width:900px;margin:0 auto}
+  .flex{display:flex;gap:10px;align-items:center}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .card{background:var(--card);padding:12px;border-radius:10px;margin-bottom:12px;box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  select,input,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;font-size:14px}
+  input[type=time], input[type=date]{padding:7px}
+  .controls{display:flex;gap:8px}
+  button{padding:10px 12px;border-radius:10px;border:none;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--btn);color:#07110a}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-blue{background:var(--blue);color:#fff}
+  .big{font-size:18px;padding:14px 18px;border-radius:12px}
+  .center{text-align:center}
+  .hist-list{max-height:380px;overflow:auto;padding-right:6px}
+  .item{display:flex;flex-direction:column;padding:10px;border-radius:8px;background:linear-gradient(180deg,var(--glass),transparent);margin-bottom:8px;border:1px solid rgba(255,255,255,0.02)}
+  .item .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  .muted{color:var(--muted);font-size:13px}
+  .chip{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:999px;font-size:13px;border:1px solid rgba(255,255,255,0.02)}
+  .small{font-size:13px}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .note{font-size:13px;color:var(--muted);margin-top:6px}
+  footer{padding:18px;text-align:center;color:var(--muted);font-size:13px}
+  @media(min-width:720px){
+    .row > .card{flex:1}
+  }
+  textarea{min-height:60px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Control de Horas — Gestiones</h1>
+  <div class="note">Diseño minimalista oscuro · Guarda localmente · Exporta PDF mensual</div>
+</header>
+
+<main>
+  <!-- TOP: Default jornada/company/comment to be applied on first fichaje of each day -->
+  <section class="card">
+    <div class="row">
+      <div style="flex:2">
+        <label>Jornada por defecto (se aplicará en el primer fichaje del día)</label>
+        <select id="defaultJornada">
+          <option value="nacional_gia">Nacional — GIA</option>
+          <option value="nacional_cliente">Nacional — Cliente</option>
+          <option value="nacional_fin">Nacional — Sábado/Domingo</option>
+          <option value="internacional_gia">Internacional — GIA</option>
+          <option value="internacional_cliente">Internacional — Cliente</option>
+          <option value="internacional_fin">Internacional — Sábado/Domingo</option>
+        </select>
+      </div>
+      <div style="flex:2">
+        <label>Empresa / Cliente (por defecto)</label>
+        <input id="defaultEmpresa" placeholder="Empresa donde trabajas (por ejemplo: Cliente X)">
+      </div>
+      <div style="flex:1">
+        <label>Comentario (por defecto)</label>
+        <input id="defaultNota" placeholder="opcional">
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div style="flex:1">
+        <label>Nota: comportamiento de cálculo</label>
+        <div class="muted small">Se redondea a medias horas. Hasta 10h = normales. Desde 11ª hora en adelante = extras. Sábados y domingos todas extras. Tarifas como día (10h) → se prorratean por hora.</div>
+      </div>
+      <div style="flex:0.6">
+        <label>Limpiar datos</label>
+        <button class="btn-danger" id="clearAllBtn">Eliminar todo</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fichaje rápido -->
+  <section class="card">
+    <div class="center">
+      <div style="max-width:520px;margin:0 auto">
+        <div style="margin-bottom:8px" class="muted small">Fichaje rápido (usa los valores por defecto si es primer fichaje del día)</div>
+        <button id="ficharBtn" class="big btn-primary">📥 FICHAR (Entrada)</button>
+        <div style="margin-top:8px" class="note">Si pulsas otra vez, fichará salida para la sesión actual. El primer fichaje del día guarda la jornada/empresa/nota por defecto.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Manual entry -->
+  <section class="card">
+    <h3>Añadir registro manual</h3>
+    <div class="two-col">
+      <div>
+        <label>Fecha</label>
+        <input type="date" id="manualFecha">
+      </div>
+      <div>
+        <label>Tipo jornada</label>
+        <select id="manualJornada">
+          <option value="nacional_gia">Nacional — GIA</option>
+          <option value="nacional_cliente">Nacional — Cliente</option>
+          <option value="nacional_fin">Nacional — Sábado/Domingo</option>
+          <option value="internacional_gia">Internacional — GIA</option>
+          <option value="internacional_cliente">Internacional — Cliente</option>
+          <option value="internacional_fin">Internacional — Sábado/Domingo</option>
+        </select>
+      </div>
+      <div>
+        <label>Entrada (hh:mm)</label>
+        <input type="time" id="manualEntrada">
+      </div>
+      <div>
+        <label>Salida (hh:mm)</label>
+        <input type="time" id="manualSalida">
+      </div>
+      <div style="grid-column:1/3">
+        <label>Empresa / Cliente</label>
+        <input id="manualEmpresa" placeholder="Nombre de la empresa/cliente">
+      </div>
+      <div style="grid-column:1/3">
+        <label>Comentario / Nota</label>
+        <input id="manualNota" placeholder="Ej: viaje a Madrid, reunión, etc.">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button id="guardarManualBtn" class="btn-blue">Guardar registro manual</button>
+      <button id="limpiarManualBtn" style="background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)">Limpiar</button>
+    </div>
+  </section>
+
+  <!-- Historial / resumen -->
+  <section class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h3 style="margin:0">Historial</h3>
+      <div class="muted small">Se muestran los últimos registros (guardados localmente)</div>
+    </div>
+    <div class="hist-list" id="historial"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
+      <button id="exportPdfBtn" class="btn-blue">📄 Exportar PDF mensual</button>
+      <button id="exportCsvBtn" style="background:transparent;border:1px solid rgba(255,255,255,0.04)">CSV</button>
+    </div>
+  </section>
+
+  <footer>
+    <div class="muted small">Datos guardados solo en este dispositivo (localStorage). Si quieres sincronizar entre dispositivos lo podemos añadir.</div>
+  </footer>
+</main>
+
+<!-- jsPDF + autotable (CDN) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+/* ---------- Config / tarifas ---------- */
+const TARIFAS = {
+  nacional_gia: 30.35,
+  nacional_cliente: 37.25,
+  nacional_fin: 40.35,
+  internacional_gia: 41.34,
+  internacional_cliente: 53.48,
+  internacional_fin: 59.34
+};
+
+/* Data model:
+   registros = {
+     "YYYY-MM-DD": {
+        jornada: "nacional_gia",
+        empresa: "Cliente X",
+        nota: "comentario",
+        fichajes: ["HH:MM","HH:MM", ...]  // push times in order
+     },
+     ...
+   }
+*/
+let registros = JSON.parse(localStorage.getItem('registros_v2') || '{}');
+
+/* ---------- Helpers ---------- */
+function save() {
+  localStorage.setItem('registros_v2', JSON.stringify(registros));
+}
+
+function formatDateKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  const d = String(date.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+function timeNowHHMM(date=new Date()){
+  return date.toTimeString().slice(0,5);
+}
+function roundToHalf(hoursFloat){
+  // hoursFloat in hours (e.g. 7.3833)
+  // round to nearest 0.5
+  return Math.round(hoursFloat*2)/2;
+}
+function minutesBetween(h1, h2){
+  // h1,h2 "HH:MM"
+  const [a1,b1]=h1.split(':').map(Number);
+  const [a2,b2]=h2.split(':').map(Number);
+  let m1=a1*60+b1, m2=a2*60+b2;
+  let diff = m2 - m1;
+  if(diff < 0) diff += 24*60; // across midnight
+  return diff;
+}
+function isWeekendDateKey(dateKey){
+  const d = new Date(dateKey + 'T00:00:00');
+  const day = d.getDay(); // 0=Sun,6=Sat
+  return day===0 || day===6;
+}
+
+/* ---------- Calculations per day ---------- */
+function calcDay(reg){
+  // reg.fichajes array of times ordered [in,out,in,out,...] or if manual, we store single pair
+  if(!reg || !reg.fichajes || reg.fichajes.length===0) {
+    return { horasTotal:0, normales:0, extras:0, sueldoNormal:0, sueldoExtra:0 };
+  }
+  // compute total minutes
+  let totalMins = 0;
+  for(let i=0;i<reg.fichajes.length;i+=2){
+    const start = reg.fichajes[i];
+    const end = reg.fichajes[i+1];
+    if(!start) continue;
+    if(!end){
+      // open punch: consider until now?
+      // We'll ignore open sessions in payroll until closed
+      continue;
+    }
+    totalMins += minutesBetween(start, end);
+  }
+  let hours = totalMins / 60;
+  hours = roundToHalf(hours); // round to nearest 0.5
+  let normales = 0, extras = 0;
+  const isWeekend = isWeekendDateKey(reg._fecha || reg.fechaKey);
+  if(isWeekend){
+    extras = hours; normales = 0;
+  } else {
+    if(hours <= 10) normales = hours;
+    else {
+      normales = 10;
+      extras = Math.max(0, hours - 10);
+    }
+  }
+  // calculate money
+  const tarifaDia = TARIFAS[reg.jornada] || 0;
+  const precioHora = tarifaDia / 10; // assumption: tarifa = dia de 10h
+  const sueldoNormal = +(normales * precioHora).toFixed(2);
+  const sueldoExtra  = +(extras * precioHora).toFixed(2); // same rate for extras by default
+  return {
+    horasTotal: hours,
+    normales,
+    extras,
+    sueldoNormal,
+    sueldoExtra
+  };
+}
+
+/* ---------- UI render ---------- */
+function renderHistorial(){
+  const cont = document.getElementById('historial');
+  cont.innerHTML = '';
+  // sort keys descending
+  const keys = Object.keys(registros).sort((a,b)=> b.localeCompare(a));
+  if(keys.length===0){
+    cont.innerHTML = `<div class="muted small">No hay registros aún.</div>`;
+    return;
+  }
+  for(const key of keys){
+    const r = registros[key];
+    // attach fecha key for calc helper
+    r.fechaKey = key;
+    const cal = calcDay(r);
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.innerHTML = `
+      <div class="meta">
+        <div>
+          <div style="font-weight:700">${key} <span class="muted small">· ${r.jornada.replace('_',' ')}</span></div>
+          <div class="muted small">${r.empresa ? r.empresa : ''}</div>
+        </div>
+        <div class="chip">${cal.horasTotal} h</div>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+        <div><span class="muted small">Entradas/Salidas</span><div class="small">${r.fichajes.map(t=>t ? t : '').join(' • ')}</div></div>
+        <div><span class="muted small">Normales</span><div class="small">${cal.normales} h</div></div>
+        <div><span class="muted small">Extras</span><div class="small">${cal.extras} h</div></div>
+        <div><span class="muted small">Sueldo</span><div class="small">${(cal.sueldoNormal + cal.sueldoExtra).toFixed(2)} €</div></div>
+      </div>
+      <div style="margin-top:8px">
+        <div class="muted small">Comentario:</div>
+        <div class="small">${r.nota ? r.nota : '<span class="muted">—</span>'}</div>
+      </div>
+    `;
+    cont.appendChild(el);
+  }
+}
+
+/* ---------- Actions: quick fichar ---------- */
+let pendingPunch = null; // in-memory pending for current open session
+
+function quickFichar(){
+  const now = new Date();
+  const key = formatDateKey(now);
+  const time = timeNowHHMM(now);
+
+  // If there is no record for today, create and set jornada/empresa/nota from defaults
+  if(!registros[key]){
+    registros[key] = {
+      jornada: document.getElementById('defaultJornada').value,
+      empresa: document.getElementById('defaultEmpresa').value || '',
+      nota: document.getElementById('defaultNota').value || '',
+      fichajes: []
+    };
+  }
+  const today = registros[key];
+  // if last fichaje array length is even -> next is entrada; odd -> salida
+  const lastLength = today.fichajes.length;
+  if(lastLength % 2 === 0){
+    // entrada
+    today.fichajes.push(time);
+    alert('Entrada registrada: ' + time);
+    // mark pendingPunch
+    pendingPunch = {key, tipo:'entrada', time};
+  } else {
+    // salida -> pair with previous
+    today.fichajes.push(time);
+    alert('Salida registrada: ' + time);
+    pendingPunch = null;
+  }
+  save(); renderHistorial();
+}
+
+/* ---------- Actions: manual entry ---------- */
+function addManual(){
+  const fecha = document.getElementById('manualFecha').value;
+  const entrada = document.getElementById('manualEntrada').value;
+  const salida = document.getElementById('manualSalida').value;
+  const jornada = document.getElementById('manualJornada').value;
+  const empresa = document.getElementById('manualEmpresa').value || '';
+  const nota = document.getElementById('manualNota').value || '';
+
+  if(!fecha || !entrada || !salida){
+    alert('Rellena fecha, entrada y salida.');
+    return;
+  }
+  // ensure registro exists
+  if(!registros[fecha]){
+    registros[fecha] = { jornada, empresa, nota, fichajes: [] };
+  }
+  const reg = registros[fecha];
+  // ensure jornada/company/nota set (don't override if already present)
+  reg.jornada = jornada || reg.jornada || jornada;
+  reg.empresa = empresa || reg.empresa || empresa;
+  reg.nota = nota || reg.nota || nota;
+  // push pair
+  reg.fichajes.push(entrada, salida);
+  save(); renderHistorial();
+  // clear inputs
+  document.getElementById('manualEntrada').value='';
+  document.getElementById('manualSalida').value='';
+  document.getElementById('manualEmpresa').value='';
+  document.getElementById('manualNota').value='';
+  alert('Registro manual guardado.');
+}
+
+/* ---------- Export CSV ---------- */
+function exportCSV(){
+  const keys = Object.keys(registros).sort();
+  let lines = [];
+  lines.push(['Fecha','Jornada','Empresa','Comentario','Entradas/Salidas','Horas totales','Normales','Extras','Sueldo normal','Sueldo extra','Total €'].join(','));
+  for(const k of keys){
+    const r = registros[k];
+    const c = calcDay(r);
+    const fichajesStr = r.fichajes.join(' | ');
+    const total = (c.sueldoNormal + c.sueldoExtra).toFixed(2);
+    lines.push([k, r.jornada, `"${r.empresa||''}"`, `"${r.nota||''}"`, `"${fichajesStr}"`, c.horasTotal, c.normales, c.extras, c.sueldoNormal, c.sueldoExtra, total].join(','));
+  }
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'horas_export.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- Export PDF (monthly) ---------- */
+async function exportPDF(){
+  // ask month/year? We'll produce for current month by default and include all entries whose key in same month
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth()+1).padStart(2,'0');
+  const monthPrefix = `${yyyy}-${mm}`; // filter by keys starting with this
+  // gather keys sorted asc
+  const keys = Object.keys(registros).filter(k => k.startsWith(monthPrefix)).sort();
+  // If no entries in current month, warn and allow export of all
+  if(keys.length===0){
+    if(!confirm('No hay registros en este mes. ¿Exportar todo el historial en su lugar?')) return;
+  }
+  const exportKeys = keys.length?keys:Object.keys(registros).sort();
+  // Build table rows
+  const rows = [];
+  // Totals breakdown
+  const totals = {
+    normales:0, extras:0, totalEuros:0,
+    byTarifa: {
+      nacional_gia:0, nacional_cliente:0, nacional_fin:0,
+      internacional_gia:0, internacional_cliente:0, internacional_fin:0
+    }
+  };
+  for(const k of exportKeys){
+    const r = registros[k];
+    const c = calcDay(r);
+    const dayTarifa = TARIFAS[r.jornada] || 0;
+    const eurosDay = +(c.sueldoNormal + c.sueldoExtra).toFixed(2);
+    rows.push([k, r.jornada, r.empresa||'', r.nota||'', r.fichajes.join(' • '), `${c.normales} h`, `${c.extras} h`, eurosDay.toFixed(2)]);
+    totals.normales += c.normales;
+    totals.extras += c.extras;
+    totals.totalEuros += eurosDay;
+    totals.byTarifa[r.jornada] = +(totals.byTarifa[r.jornada] + eurosDay).toFixed(2);
+  }
+
+  // Generate PDF using jsPDF + autotable
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 40;
+  let y = 50;
+  doc.setFontSize(16);
+  doc.text('Parte de Horas - Informe Mensual', margin, y);
+  doc.setFontSize(10);
+  y += 18;
+  // Header editable fields: trabajador/empresa (use top defaults)
+  const trabajador = document.getElementById('defaultEmpresa').value || 'Nombre trabajador';
+  doc.text(`Trabajador / Empresa: ${trabajador}`, margin, y);
+  y += 14;
+  doc.text(`Periodo: ${exportKeys.length?(`${exportKeys[0]} → ${exportKeys[exportKeys.length-1]}`):'Todo historial'}`, margin, y);
+  y += 18;
+  // Table: use autotable
+  const head = [['Fecha','Jornada','Empresa','Comentario','Entradas/Salidas','Normales','Extras','€ día']];
+  const body = rows;
+  doc.autoTable({
+    startY: y,
+    head: head,
+    body: body,
+    styles: { fontSize:9 },
+    headStyles: { fillColor: [30,30,30], textColor:255 },
+    theme:'striped',
+    margin: { left: margin, right: margin },
+    tableWidth: pageWidth - margin*2,
+    didDrawPage: (data)=>{}
+  });
+  y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : y + 20;
+
+  // Summary block
+  doc.setFontSize(11);
+  doc.text('Resumen mensual', margin, y);
+  y += 14;
+  doc.setFontSize(10);
+  doc.text(`Horas normales totales: ${totals.normales} h`, margin, y); y+=12;
+  doc.text(`Horas extra totales: ${totals.extras} h`, margin, y); y+=12;
+  doc.text(`Total (€) por tipo:`, margin, y); y+=12;
+  // list each tarifa breakdown
+  const tarifaOrder = ['nacional_gia','nacional_cliente','nacional_fin','internacional_gia','internacional_cliente','internacional_fin'];
+  const tarifaNames = {
+    nacional_gia:'Nacional GIA',
+    nacional_cliente:'Nacional Cliente',
+    nacional_fin:'Nacional Fin de semana',
+    internacional_gia:'Internacional GIA',
+    internacional_cliente:'Internacional Cliente',
+    internacional_fin:'Internacional Fin de semana'
+  };
+  for(const t of tarifaOrder){
+    const val = totals.byTarifa[t] || 0;
+    doc.text(`${tarifaNames[t]}: ${val.toFixed(2)} €`, margin + 10, y); y+=12;
+  }
+  y += 4;
+  doc.setFontSize(12);
+  doc.text(`TOTAL GENERAL: ${totals.totalEuros.toFixed(2)} €`, margin, y);
+  doc.save('informe_horas.pdf');
+}
+
+/* ---------- UI wiring ---------- */
+document.getElementById('ficharBtn').addEventListener('click', quickFichar);
+document.getElementById('guardarManualBtn').addEventListener('click', addManual);
+document.getElementById('limpiarManualBtn').addEventListener('click', ()=>{
+  document.getElementById('manualFecha').value='';
+  document.getElementById('manualEntrada').value='';
+  document.getElementById('manualSalida').value='';
+  document.getElementById('manualEmpresa').value='';
+  document.getElementById('manualNota').value='';
+});
+document.getElementById('exportPdfBtn').addEventListener('click', exportPDFConfirm);
+document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
+document.getElementById('clearAllBtn').addEventListener('click', ()=>{
+  if(confirm('¿Eliminar todos los registros guardados localmente? Esta acción es irreversible.')){ registros = {}; save(); renderHistorial(); alert('Datos eliminados.'); }
+});
+
+function exportPDFConfirm(){
+  // Ask user which month to export? quick choice: current month or whole history
+  const opcion = prompt('Escribe el mes a exportar en formato YYYY-MM (p.ej. 2025-09) o deja vacío para exportar el mes actual. (Escribe "todo" para todo el historial)');
+  if(opcion === null) return;
+  if(opcion.trim().toLowerCase() === 'todo'){
+    // temporarily mark all keys by setting monthPrefix empty => export all
+    // implement by altering exportPDF to accept prefix: we'll simply call exportPDF() but we built it for current month.
+    // simpler: temporarily change date to earliest: set system date? Instead, modify function to accept prefix. Quick approach: create a temporary wrapper.
+    exportPDFAll();
+  } else if(opcion.trim() === ''){
+    exportPDF();
+  } else {
+    exportPDFForPrefix(opcion.trim());
+  }
+}
+
+/* exportPDFForPrefix / exportPDFAll reuse logic from exportPDF but with prefix parameter */
+async function exportPDFForPrefix(prefix){
+  // validate prefix pattern YYYY-MM
+  if(!/^\d{4}-\d{2}$/.test(prefix)){
+    alert('Formato inválido. Usa YYYY-MM');
+    return;
+  }
+  await exportPDFWithPrefix(prefix);
+}
+async function exportPDFAll(){
+  await exportPDFWithPrefix(null); // null means all
+}
+async function exportPDF(){
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth()+1).padStart(2,'0');
+  await exportPDFWithPrefix(`${yyyy}-${mm}`);
+}
+async function exportPDFWithPrefix(prefix){
+  // prefix null => all
+  const keys = Object.keys(registros).sort();
+  const filtered = prefix ? keys.filter(k => k.startsWith(prefix)) : keys;
+  if(filtered.length===0){
+    if(!confirm('No hay registros para el periodo seleccionado. ¿Deseas exportar todo el historial en su lugar?')) return;
+  }
+  const exportKeys = filtered.length ? filtered : keys;
+  // build rows & totals
+  const rows = [];
+  const totals = { normales:0, extras:0, totalEuros:0, byTarifa: { nacional_gia:0,nacional_cliente:0,nacional_fin:0, internacional_gia:0,internacional_cliente:0,internacional_fin:0 } };
+  for(const k of exportKeys){
+    const r = registros[k];
+    const c = calcDay(r);
+    const eurosDay = +(c.sueldoNormal + c.sueldoExtra).toFixed(2);
+    rows.push([k, r.jornada.replace('_',' '), r.empresa||'', r.nota||'', r.fichajes.join(' • '), `${c.normales} h`, `${c.extras} h`, eurosDay.toFixed(2)]);
+    totals.normales += c.normales;
+    totals.extras += c.extras;
+    totals.totalEuros += eurosDay;
+    totals.byTarifa[r.jornada] = +(totals.byTarifa[r.jornada] + eurosDay).toFixed(2);
+  }
+  // create PDF
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 40;
+  let y = 50;
+  doc.setFontSize(16);
+  doc.text('Parte de Horas - Informe', margin, y);
+  doc.setFontSize(10);
+  y += 18;
+  const trabajador = document.getElementById('defaultEmpresa').value || 'Trabajador';
+  doc.text(`Trabajador/Empresa: ${trabajador}`, margin, y); y += 14;
+  doc.text(`Periodo: ${exportKeys.length?(`${exportKeys[0]} → ${exportKeys[exportKeys.length-1]}`):'Sin datos'}`, margin, y); y += 18;
+  // table
+  const head = [['Fecha','Jornada','Empresa','Comentario','Entradas/Salidas','Normales','Extras','€ día']];
+  doc.autoTable({
+    startY: y,
+    head: head,
+    body: rows,
+    styles: { fontSize:9 },
+    headStyles: { fillColor: [40,40,40], textColor:255 },
+    margin: { left: margin, right: margin },
+    tableWidth: pageWidth - margin*2
+  });
+  y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 12 : y + 20;
+  // summary
+  doc.setFontSize(12);
+  doc.text('Resumen', margin, y); y += 14;
+  doc.setFontSize(10);
+  doc.text(`Horas normales totales: ${totals.normales} h`, margin, y); y += 12;
+  doc.text(`Horas extra totales: ${totals.extras} h`, margin, y); y += 12;
+  doc.text(`Detalle por tipo (euros):`, margin, y); y += 12;
+  const tarifaOrder = ['nacional_gia','nacional_cliente','nacional_fin','internacional_gia','internacional_cliente','internacional_fin'];
+  const tarifaNames = {
+    nacional_gia:'Nacional GIA',
+    nacional_cliente:'Nacional Cliente',
+    nacional_fin:'Nacional Fin de semana',
+    internacional_gia:'Internacional GIA',
+    internacional_cliente:'Internacional Cliente',
+    internacional_fin:'Internacional Fin de semana'
+  };
+  for(const t of tarifaOrder){
+    doc.text(`${tarifaNames[t]}: ${totals.byTarifa[t].toFixed(2)} €`, margin+8, y); y += 12;
+  }
+  y += 6;
+  doc.setFontSize(12);
+  doc.text(`TOTAL GENERAL: ${totals.totalEuros.toFixed(2)} €`, margin, y);
+  doc.save('informe_horas.pdf');
+}
+
+/* ---------- Init ---------- */
+(function init(){
+  // load defaults from localStorage if present
+  const dJ = localStorage.getItem('defaultJornada');
+  if(dJ) document.getElementById('defaultJornada').value = dJ;
+  const dE = localStorage.getItem('defaultEmpresa');
+  if(dE) document.getElementById('defaultEmpresa').value = dE;
+  const dN = localStorage.getItem('defaultNota');
+  if(dN) document.getElementById('defaultNota').value = dN;
+
+  // attach save on change for defaults
+  document.getElementById('defaultJornada').addEventListener('change', e => { localStorage.setItem('defaultJornada', e.target.value); });
+  document.getElementById('defaultEmpresa').addEventListener('input', e => { localStorage.setItem('defaultEmpresa', e.target.value); });
+  document.getElementById('defaultNota').addEventListener('input', e => { localStorage.setItem('defaultNota', e.target.value); });
+
+  // load any registro keys into array and render
+  renderHistorial();
+})();
+</script>
+</body>
+</html>
