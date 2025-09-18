@@ -1,0 +1,183 @@
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Control de Horas</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #1c1c1c;
+    color: #f1f1f1;
+    margin: 0; padding: 20px;
+  }
+  h1, h2 { text-align: center; }
+  .section { margin: 20px 0; }
+  select, button {
+    width: 100%;
+    padding: 10px;
+    margin: 5px 0;
+    font-size: 16px;
+    border-radius: 5px;
+    border: none;
+  }
+  button { cursor: pointer; font-weight: bold; }
+  #ficharBtn { background-color: #28a745; color: white; font-size: 20px; }
+  #ficharBtn.salida { background-color: #dc3545; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  th, td {
+    border: 1px solid #444;
+    padding: 6px;
+    text-align: center;
+  }
+  tr:nth-child(even) { background-color: #2a2a2a; }
+  .pdf-btn { background-color: #007bff; color: white; }
+</style>
+</head>
+<body>
+  <h1>📊 Control de Horas</h1>
+
+  <div class="section" id="jornadaSection">
+    <h2>Seleccionar Jornada</h2>
+    <select id="jornadaTipo">
+      <option value="nacional_gia">Nacional - GIA</option>
+      <option value="nacional_cliente">Nacional - Cliente</option>
+      <option value="nacional_findesemana">Nacional - Sábado/Domingo</option>
+      <option value="internacional_gia">Internacional - GIA</option>
+      <option value="internacional_cliente">Internacional - Cliente</option>
+      <option value="internacional_findesemana">Internacional - Sábado/Domingo</option>
+    </select>
+  </div>
+
+  <div class="section">
+    <button id="ficharBtn">Fichar Entrada</button>
+  </div>
+
+  <div class="section">
+    <h2>Historial</h2>
+    <table id="historial">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Tipo</th>
+          <th>Entradas / Salidas</th>
+          <th>Normales</th>
+          <th>Extras</th>
+          <th>Sueldo (€)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <button class="pdf-btn" onclick="generarPDF()">📄 Exportar PDF</button>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const tarifas = {
+  nacional_gia: 30.35,
+  nacional_cliente: 37.25,
+  nacional_findesemana: 40.35,
+  internacional_gia: 41.34,
+  internacional_cliente: 53.48,
+  internacional_findesemana: 59.34
+};
+
+let registros = JSON.parse(localStorage.getItem("registros") || "{}");
+
+function guardarDatos() {
+  localStorage.setItem("registros", JSON.stringify(registros));
+}
+
+function redondearMediaHora(mins) {
+  return Math.round(mins / 30) * 0.5;
+}
+
+function fichar() {
+  const hoy = new Date().toISOString().split("T")[0];
+  if (!registros[hoy]) {
+    registros[hoy] = { jornada: document.getElementById("jornadaTipo").value, fichajes: [] };
+  }
+  registros[hoy].fichajes.push(new Date().toISOString());
+  guardarDatos();
+  renderTabla();
+}
+
+function calcularHoras(fichajes, jornada) {
+  if (fichajes.length < 2) return { normales: 0, extras: 0, sueldo: 0 };
+  let totalMins = 0;
+  for (let i=0; i<fichajes.length; i+=2) {
+    if (fichajes[i+1]) {
+      const ini = new Date(fichajes[i]);
+      const fin = new Date(fichajes[i+1]);
+      totalMins += (fin - ini) / 60000;
+    }
+  }
+  let horas = redondearMediaHora(totalMins);
+  let normales = 0, extras = 0;
+  const esFindesemana = jornada.includes("findesemana");
+  if (esFindesemana) {
+    extras = horas;
+  } else {
+    if (horas <= 10) normales = horas;
+    else { normales = 10; extras = horas - 10; }
+  }
+  const tarifaDia = tarifas[jornada];
+  const sueldo = (horas/10) * tarifaDia; 
+  return { normales, extras, sueldo: sueldo.toFixed(2) };
+}
+
+function renderTabla() {
+  const tbody = document.querySelector("#historial tbody");
+  tbody.innerHTML = "";
+  for (let fecha in registros) {
+    const reg = registros[fecha];
+    const { normales, extras, sueldo } = calcularHoras(reg.fichajes, reg.jornada);
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${fecha}</td>
+      <td>${reg.jornada.replace(/_/g," ")}</td>
+      <td>${reg.fichajes.map(f=>new Date(f).toLocaleTimeString()).join("<br>")}</td>
+      <td>${normales}</td>
+      <td>${extras}</td>
+      <td>${sueldo}</td>
+    `;
+    tbody.appendChild(row);
+  }
+}
+
+async function generarPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Informe Mensual - Control de Horas", 20, 20);
+  let y = 30;
+  doc.setFontSize(10);
+  for (let fecha in registros) {
+    const reg = registros[fecha];
+    const { normales, extras, sueldo } = calcularHoras(reg.fichajes, reg.jornada);
+    doc.text(`${fecha} | ${reg.jornada.replace(/_/g," ")} | Normales: ${normales}h | Extras: ${extras}h | €${sueldo}`, 20, y);
+    y += 6;
+    if (y > 280) { doc.addPage(); y = 20; }
+  }
+  doc.save("informe_horas.pdf");
+}
+
+document.getElementById("ficharBtn").addEventListener("click", () => {
+  fichar();
+  const btn = document.getElementById("ficharBtn");
+  btn.classList.toggle("salida");
+  btn.textContent = btn.classList.contains("salida") ? "Fichar Salida" : "Fichar Entrada";
+});
+
+renderTabla();
+</script>
+</body>
+</html>
