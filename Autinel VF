@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Control de Horas - Gestiones</title>
+<style>
+:root{
+  --bg:#121216;
+  --card:#1c1c20;
+  --muted:#9aa0a6;
+  --accent:#2dd4bf;
+  --btn:#2fb26f;
+  --danger:#e15757;
+  --blue:#3a6ea5;
+  --glass: rgba(255,255,255,0.03);
+}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,Helvetica,sans-serif;background:linear-gradient(180deg,var(--bg),#0f0f12);color:#eaeaf0}
+header{padding:18px 16px;text-align:center;background:linear-gradient(90deg,rgba(255,255,255,0.02),transparent);box-shadow:0 1px 0 rgba(255,255,255,0.02) inset}
+header h1{margin:0;font-size:18px;letter-spacing:0.2px}
+main{padding:12px;max-width:900px;margin:0 auto}
+.flex{display:flex;gap:10px;align-items:center}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.card{background:var(--card);padding:12px;border-radius:10px;margin-bottom:12px;box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+select,input,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;font-size:14px}
+input[type=time], input[type=date]{padding:7px}
+.controls{display:flex;gap:8px}
+button{padding:10px 12px;border-radius:10px;border:none;font-weight:600;cursor:pointer}
+.btn-primary{background:var(--btn);color:#07110a}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-blue{background:var(--blue);color:#fff}
+.big{font-size:18px;padding:14px 18px;border-radius:12px}
+.center{text-align:center}
+.hist-list{max-height:380px;overflow:auto;padding-right:6px}
+.item{display:flex;flex-direction:column;padding:10px;border-radius:8px;background:linear-gradient(180deg,var(--glass),transparent);margin-bottom:8px;border:1px solid rgba(255,255,255,0.02)}
+.item .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.muted{color:var(--muted);font-size:13px}
+.chip{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:999px;font-size:13px;border:1px solid rgba(255,255,255,0.02)}
+.small{font-size:13px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.note{font-size:13px;color:var(--muted);margin-top:6px}
+footer{padding:18px;text-align:center;color:var(--muted);font-size:13px}
+@media(min-width:720px){
+  .row > .card{flex:1}
+}
+textarea{min-height:60px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Control de Horas — Gestiones</h1>
+  <div class="note">Diseño minimalista oscuro · Guarda localmente · Exporta PDF mensual</div>
+</header>
+
+<main>
+<section class="card">
+  <div class="row">
+    <div style="flex:2">
+      <label>Jornada por defecto</label>
+      <select id="defaultJornada">
+        <option value="nacional">Nacional</option>
+        <option value="nacional_cliente">Nacional gastos cliente</option>
+        <option value="nacional_fin">Nacional fines de semana</option>
+        <option value="internacional">Internacional</option>
+        <option value="internacional_cliente">Internacional gastos cliente</option>
+        <option value="internacional_fin">Internacional fines de semana</option>
+      </select>
+    </div>
+    <div style="flex:2">
+      <label>Empresa / Cliente (por defecto)</label>
+      <input id="defaultEmpresa" placeholder="Empresa donde trabajas (por ejemplo: Cliente X)">
+    </div>
+    <div style="flex:1">
+      <label>Comentario (por defecto)</label>
+      <input id="defaultNota" placeholder="opcional">
+    </div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div style="flex:1">
+      <label>Nota: comportamiento de cálculo</label>
+      <div class="muted small">Se redondea a medias horas. Hasta 10h = normales. Desde 10h en adelante = extras. Fines de semana todas horas son extras.</div>
+    </div>
+    <div style="flex:0.6">
+      <label>Limpiar datos</label>
+      <button class="btn-danger" id="clearAllBtn">Eliminar todo</button>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="center">
+    <div style="max-width:520px;margin:0 auto">
+      <div style="margin-bottom:8px" class="muted small">Fichaje rápido</div>
+      <button id="ficharBtn" class="big btn-primary">📥 FICHAR E/S </button>
+      <div style="margin-top:8px" class="note">Si pulsas otra vez, fichará salida para la sesión actual.</div>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h3>Añadir registro manual</h3>
+  <div class="two-col">
+    <div><label>Fecha</label><input type="date" id="manualFecha"></div>
+    <div><label>Tipo jornada</label>
+      <select id="manualJornada">
+        <option value="nacional">Nacional</option>
+        <option value="nacional_cliente">Nacional gastos cliente</option>
+        <option value="nacional_fin">Nacional fines de semana</option>
+        <option value="internacional">Internacional</option>
+        <option value="internacional_cliente">Internacional gastos cliente</option>
+        <option value="internacional_fin">Internacional fines de semana</option>
+      </select>
+    </div>
+    <div><label>Entrada (hh:mm)</label><input type="time" id="manualEntrada"></div>
+    <div><label>Salida (hh:mm)</label><input type="time" id="manualSalida"></div>
+    <div style="grid-column:1/3"><label>Empresa / Cliente</label><input id="manualEmpresa" placeholder="Nombre de la empresa/cliente"></div>
+    <div style="grid-column:1/3"><label>Comentario / Nota</label><input id="manualNota" placeholder="Ej: viaje a Madrid, reunión, etc."></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button id="guardarManualBtn" class="btn-blue">Guardar registro manual</button>
+    <button id="limpiarManualBtn" style="background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)">Limpiar</button>
+  </div>
+</section>
+
+<section class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <h3 style="margin:0">Historial</h3>
+    <div class="muted small">Últimos registros (guardados localmente)</div>
+  </div>
+  <div class="hist-list" id="historial"></div>
+  <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
+    <button id="exportPdfBtn" class="btn-blue">📄 Exportar PDF mensual</button>
+    <button id="exportCsvBtn" style="background:transparent;border:1px solid rgba(255,255,255,0.04)">CSV</button>
+  </div>
+</section>
+
+<footer>
+  <div class="muted small">Datos guardados solo en este dispositivo (localStorage).</div>
+</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+<script>
+const TARIFAS={
+  nacional:30.35,
+  nacional_fin:40.35,
+  nacional_cliente:10,
+  internacional:41.34,
+  internacional_fin:53.48,
+  internacional_cliente:18
+};
+let registros=JSON.parse(localStorage.getItem('registros_v3')||'{}');
+
+function save(){ localStorage.setItem('registros_v3',JSON.stringify(registros)); }
+function formatDateKey(date){ const y=date.getFullYear(); const m=String(date.getMonth()+1).padStart(2,'0'); const d=String(date.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; }
+function timeNowHHMM(date=new Date()){ return date.toTimeString().slice(0,5); }
+function roundToHalf(h){ return Math.round(h*2)/2; }
+function minutesBetween(h1,h2){ const [a1,b1]=h1.split(':').map(Number); const [a2,b2]=h2.split(':').map(Number); let m1=a1*60+b1,m2=a2*60+b2,diff=m2-m1; if(diff<0) diff+=24*60; return diff; }
+function isWeekendDateKey(dk){ const d=new Date(dk+'T00:00:00'); const day=d.getDay(); return day===0||day===6; }
+
+function calcDay(r){
+  if(!r||!r.fichajes||r.fichajes.length===0) return {horasTotal:0,normales:0,extras:0,sueldoDia:0};
+  let totalMins=0;
+  for(let i=0;i<r.fichajes.length;i+=2){
+    const start=r.fichajes[i], end=r.fichajes[i+1]; if(!start) continue; if(!end) continue;
+    totalMins += minutesBetween(start,end);
+  }
+  let horas=roundToHalf(totalMins/60);
+  const finSemana=isWeekendDateKey(r._fecha||r.fechaKey);
+  let normales=0, extras=0;
+  if(finSemana){ extras=horas; normales=0; } else { normales=Math.min(10,horas); extras=Math.max(0,horas-10); }
+  let tarifa=0;
+  switch(r.jornada){
+    case'nacional': tarifa=TARIFAS.nacional; break;
+    case'nacional_fin': tarifa=TARIFAS.nacional_fin; break;
+    case'nacional_cliente': tarifa=TARIFAS.nacional+TARIFAS.nacional_cliente; break;
+    case'nacional_fin_cliente': tarifa=TARIFAS.nacional_fin+TARIFAS.nacional_cliente; break;
+    case'internacional': tarifa=TARIFAS.internacional; break;
+    case'internacional_fin': tarifa=TARIFAS.internacional_fin; break;
+    case'internacional_cliente': tarifa=TARIFAS.internacional+TARIFAS.internacional_cliente; break;
+    case'internacional_fin_cliente': tarifa=TARIFAS.internacional_fin+TARIFAS.internacional_cliente; break;
+  }
+  let sueldoDia=tarifa + extras*16;
+  return {horasTotal:horas,normales,extras,sueldoDia};
+}
+
+function renderHistorial(){
+  const cont=document.getElementById('historial');
+  cont.innerHTML='';
+  const keys=Object.keys(registros).sort((a,b)=>b.localeCompare(a));
+  keys.forEach(k=>{
+    const r=registros[k]; r._fecha=k;
+    const cal=calcDay(r);
+    const item=document.createElement('div'); item.className='item';
+    item.innerHTML=`
+      <div class="meta">
+        <div><b>${k}</b> — <span class="chip">${r.jornada.replace('_',' ')}</span> — ${r.empresa||''}</div>
+        <div style="display:flex;gap:4px">
+          <button class="btn-blue btn-edit" data-key="${k}">Editar</button>
+          <button class="btn-danger btn-del" data-key="${k}">Eliminar</button>
+        </div>
+      </div>
+      <div class="small">Entradas/Salidas: ${r.fichajes.join(' • ')}</div>
+      <div class="small">Horas normales: ${cal.normales} h — Extras: ${cal.extras} h — Sueldo día: ${cal.sueldoDia.toFixed(2)} €</div>
+      ${r.nota?'<div class="note">Nota: '+r.nota+'</div>':''}
+    `;
+    cont.appendChild(item);
+  });
+  document.querySelectorAll('.btn-del').forEach(b=>b.addEventListener('click',e=>{
+    const key=e.target.dataset.key; if(confirm('Eliminar este día?')){ delete registros[key]; save(); renderHistorial(); }
+  }));
+  document.querySelectorAll('.btn-edit').forEach(b=>b.addEventListener('click',e=>{
+    const key=e.target.dataset.key; const r=registros[key];
+    const newEntrada=prompt('Editar fichajes (entradas y salidas separadas por coma)', r.fichajes.join(',')); 
+    if(newEntrada!==null) r.fichajes=newEntrada.split(',').map(s=>s.trim());
+    const newJornada=prompt('Editar tipo de jornada', r.jornada); if(newJornada) r.jornada=newJornada;
+    const newEmpresa=prompt('Editar empresa/cliente', r.empresa); if(newEmpresa!==null) r.empresa=newEmpresa;
+    const newNota=prompt('Editar nota', r.nota); if(newNota!==null) r.nota=newNota;
+    registros[key]=r; save(); renderHistorial();
+  }));
+}
+
+// -------------------- FICHAR RÁPIDO --------------------
+let ultimaEntrada=null;
+document.getElementById('ficharBtn').addEventListener('click',()=>{
+  const now=new Date();
+  const f=formatDateKey(now);
+  const j=document.getElementById('defaultJornada').value;
+  const emp=document.getElementById('defaultEmpresa').value;
+  const nota=document.getElementById('defaultNota').value;
+  if(!registros[f]) registros[f]={fichajes:[],jornada:j,empresa:emp,nota:nota};
+
+  let tipo='';
+  if(!ultimaEntrada || ultimaEntrada.dateKey!==f){ 
+    registros[f].fichajes.push(timeNowHHMM(now)); 
+    ultimaEntrada={type:'in',dateKey:f}; 
+    tipo='Entrada';
+  } 
+  else{ 
+    registros[f].fichajes.push(timeNowHHMM(now)); 
+    ultimaEntrada=null; 
+    tipo='Salida';
+  }
+  registros[f].jornada=j; registros[f].empresa=emp; registros[f].nota=nota;
+  save(); renderHistorial();
+
+  alert(`${tipo} registrada a las ${timeNowHHMM(now)}`); // NUEVO ALERT
+});
+
+// -------------------- REGISTRO MANUAL --------------------
+document.getElementById('guardarManualBtn').addEventListener('click',()=>{
+  const f=document.getElementById('manualFecha').value;
+  if(!f){ alert('Selecciona fecha'); return; }
+  const j=document.getElementById('manualJornada').value;
+  const e=document.getElementById('manualEntrada').value;
+  const s=document.getElementById('manualSalida').value;
+  const emp=document.getElementById('manualEmpresa').value;
+  const nota=document.getElementById('manualNota').value;
+  if(!registros[f]) registros[f]={fichajes:[],jornada:j,empresa:emp,nota:nota};
+  if(e) registros[f].fichajes.push(e);
+  if(s) registros[f].fichajes.push(s);
+  registros[f].jornada=j; registros[f].empresa=emp; registros[f].nota=nota;
+  save(); renderHistorial();
+});
+document.getElementById('limpiarManualBtn').addEventListener('click',()=>{
+  document.getElementById('manualFecha').value='';
+  document.getElementById('manualEntrada').value='';
+  document.getElementById('manualSalida').value='';
+  document.getElementById('manualEmpresa').value='';
+  document.getElementById('manualNota').value='';
+});
+document.getElementById('clearAllBtn').addEventListener('click',()=>{
+  if(confirm('Eliminar todos los registros?')){ registros={}; save(); renderHistorial(); }
+});
+
+// -------------------- EXPORT PDF --------------------
+document.getElementById('exportPdfBtn').addEventListener('click',()=>{
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let rows=[];
+  let totalNormales=0, totalExtras=0, totalSueldo=0;
+  const keys=Object.keys(registros).sort((a,b)=>b.localeCompare(a));
+  for(const k of keys){
+    const r=registros[k];
+    const cal=calcDay(r);
+    rows.push([k, r.jornada.replace('_',' '), r.empresa||'', r.fichajes.join(' • '), cal.normales+' h', cal.extras+' h', cal.sueldoDia.toFixed(2)+' €']);
+    totalNormales += cal.normales;
+    totalExtras += cal.extras;
+    totalSueldo += cal.sueldoDia;
+  }
+  doc.autoTable({ head:[['Fecha','Jornada','Empresa','Entradas/Salidas','Normales','Extras','Sueldo']], body:rows });
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 10,
+    head:[['Totales','','','', 'Normales', 'Extras', 'Sueldo']],
+    body:[[ '', '', '', '', totalNormales+' h', totalExtras+' h', totalSueldo.toFixed(2)+' €' ]]
+  });
+  doc.save('historial.pdf');
+});
+
+// -------------------- INICIAL --------------------
+renderHistorial();
+</script>
+</body>
+</html>
