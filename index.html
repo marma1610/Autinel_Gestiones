@@ -57,16 +57,13 @@ textarea{min-height:60px}
 <section class="card">
   <div class="row">
     <div style="flex:2">
-      <label>Jornada por defecto</label>
-      <select id="defaultJornada">
-        <option value="nacional">Nacional</option>
-        <option value="nacional_cliente">Nacional gastos cliente</option>
-        <option value="nacional_fin">Nacional fines de semana</option>
-        <option value="internacional">Internacional</option>
-        <option value="internacional_cliente">Internacional gastos cliente</option>
-        <option value="internacional_fin">Internacional fines de semana</option>
-      </select>
-    </div>
+  <label>Jornada por defecto</label>
+  <select id="defaultJornada">
+    <option value="nacional">Nacional</option>
+    <option value="internacional">Internacional</option>
+  </select>
+</div>
+
     <div style="flex:2">
       <label>Empresa / Cliente (por defecto)</label>
       <input id="defaultEmpresa" placeholder="Empresa donde trabajas (por ejemplo: Cliente X)">
@@ -74,6 +71,10 @@ textarea{min-height:60px}
     <div style="flex:1">
       <label>Comentario (por defecto)</label>
       <input id="defaultNota" placeholder="opcional">
+    </div>
+    <div style="flex:1;display:flex;align-items:center">
+      <label style="flex:1">Gastos cliente</label>
+      <input type="checkbox" id="gastosClienteChk">
     </div>
   </div>
   <div class="row" style="margin-top:8px">
@@ -106,10 +107,12 @@ textarea{min-height:60px}
       <select id="manualJornada">
         <option value="nacional">Nacional</option>
         <option value="nacional_cliente">Nacional gastos cliente</option>
-        <option value="nacional_fin">Nacional fines de semana</option>
+        <option value="nacional_fin">Nacional fin de semana</option>
+        <option value="nacional_fin_cliente">Nacional fin de semana gastos cliente</option>
         <option value="internacional">Internacional</option>
         <option value="internacional_cliente">Internacional gastos cliente</option>
-        <option value="internacional_fin">Internacional fines de semana</option>
+        <option value="internacional_fin">Internacional fin de semana</option>
+        <option value="internacional_fin_cliente">Internacional fin de semana gastos cliente</option>
       </select>
     </div>
     <div><label>Entrada (hh:mm)</label><input type="time" id="manualEntrada"></div>
@@ -151,6 +154,7 @@ const TARIFAS={
   internacional_fin:53.48,
   internacional_cliente:18
 };
+
 let registros=JSON.parse(localStorage.getItem('registros_v3')||'{}');
 
 function save(){ localStorage.setItem('registros_v3',JSON.stringify(registros)); }
@@ -196,7 +200,7 @@ function renderHistorial(){
     const item=document.createElement('div'); item.className='item';
     item.innerHTML=`
       <div class="meta">
-        <div><b>${k}</b> — <span class="chip">${r.jornada.replace('_',' ')}</span> — ${r.empresa||''}</div>
+        <div><b>${k}</b> — <span class="chip">${r.jornada.replaceAll('_',' ')}</span> — ${r.empresa||''}</div>
         <div style="display:flex;gap:4px">
           <button class="btn-blue btn-edit" data-key="${k}">Editar</button>
           <button class="btn-danger btn-del" data-key="${k}">Eliminar</button>
@@ -227,9 +231,22 @@ let ultimaEntrada=null;
 document.getElementById('ficharBtn').addEventListener('click',()=>{
   const now=new Date();
   const f=formatDateKey(now);
-  const j=document.getElementById('defaultJornada').value;
+  let j=document.getElementById('defaultJornada').value; // solo 'nacional' o 'internacional'
   const emp=document.getElementById('defaultEmpresa').value;
   const nota=document.getElementById('defaultNota').value;
+  const gastosCliente=document.getElementById('gastosClienteChk').checked;
+
+  // Detecta fin de semana
+  const esFinSemana=isWeekendDateKey(f);
+
+  // Ajusta jornada automáticamente según gastosCliente y fin de semana
+  if(gastosCliente){
+    if(j==='nacional') j = esFinSemana ? 'nacional_fin_cliente' : 'nacional_cliente';
+    else j = esFinSemana ? 'internacional_fin_cliente' : 'internacional_cliente';
+  } else {
+    j = esFinSemana ? (j==='nacional' ? 'nacional_fin' : 'internacional_fin') : j;
+  }
+
   if(!registros[f]) registros[f]={fichajes:[],jornada:j,empresa:emp,nota:nota};
 
   let tipo='';
@@ -243,11 +260,16 @@ document.getElementById('ficharBtn').addEventListener('click',()=>{
     ultimaEntrada=null; 
     tipo='Salida';
   }
-  registros[f].jornada=j; registros[f].empresa=emp; registros[f].nota=nota;
-  save(); renderHistorial();
 
-  alert(`${tipo} registrada a las ${timeNowHHMM(now)}`); // NUEVO ALERT
+  registros[f].jornada=j;
+  registros[f].empresa=emp;
+  registros[f].nota=nota;
+
+  save(); 
+  renderHistorial();
+  alert(`${tipo} registrada a las ${timeNowHHMM(now)} (${j.replaceAll('_',' ')})`);
 });
+
 
 // -------------------- REGISTRO MANUAL --------------------
 document.getElementById('guardarManualBtn').addEventListener('click',()=>{
@@ -258,48 +280,55 @@ document.getElementById('guardarManualBtn').addEventListener('click',()=>{
   const s=document.getElementById('manualSalida').value;
   const emp=document.getElementById('manualEmpresa').value;
   const nota=document.getElementById('manualNota').value;
-  if(!registros[f]) registros[f]={fichajes:[],jornada:j,empresa:emp,nota:nota};
+
+  if(!registros[f]){
+    registros[f]={fichajes:[],jornada:j,empresa:emp,nota:nota};
+  }
+
   if(e) registros[f].fichajes.push(e);
   if(s) registros[f].fichajes.push(s);
-  registros[f].jornada=j; registros[f].empresa=emp; registros[f].nota=nota;
-  save(); renderHistorial();
+  registros[f].jornada=j;
+  registros[f].empresa=emp;
+  registros[f].nota=nota;
+
+  save();
+  renderHistorial();
 });
+
+// -------------------- LIMPIAR --------------------
+document.getElementById('clearAllBtn').addEventListener('click',()=>{
+  if(confirm("¿Eliminar todos los registros?")){
+    registros={};
+    save();
+    renderHistorial();
+  }
+});
+
 document.getElementById('limpiarManualBtn').addEventListener('click',()=>{
   document.getElementById('manualFecha').value='';
+  document.getElementById('manualJornada').value='nacional';
   document.getElementById('manualEntrada').value='';
   document.getElementById('manualSalida').value='';
   document.getElementById('manualEmpresa').value='';
   document.getElementById('manualNota').value='';
 });
-document.getElementById('clearAllBtn').addEventListener('click',()=>{
-  if(confirm('Eliminar todos los registros?')){ registros={}; save(); renderHistorial(); }
-});
 
-// -------------------- EXPORT PDF --------------------
+// -------------------- EXPORTAR PDF --------------------
 document.getElementById('exportPdfBtn').addEventListener('click',()=>{
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  let rows=[];
-  let totalNormales=0, totalExtras=0, totalSueldo=0;
-  const keys=Object.keys(registros).sort((a,b)=>b.localeCompare(a));
-  for(const k of keys){
-    const r=registros[k];
-    const cal=calcDay(r);
-    rows.push([k, r.jornada.replace('_',' '), r.empresa||'', r.fichajes.join(' • '), cal.normales+' h', cal.extras+' h', cal.sueldoDia.toFixed(2)+' €']);
-    totalNormales += cal.normales;
-    totalExtras += cal.extras;
-    totalSueldo += cal.sueldoDia;
-  }
-  doc.autoTable({ head:[['Fecha','Jornada','Empresa','Entradas/Salidas','Normales','Extras','Sueldo']], body:rows });
-  doc.autoTable({
-    startY: doc.lastAutoTable.finalY + 10,
-    head:[['Totales','','','', 'Normales', 'Extras', 'Sueldo']],
-    body:[[ '', '', '', '', totalNormales+' h', totalExtras+' h', totalSueldo.toFixed(2)+' €' ]]
+  let y = 10;
+  const keys=Object.keys(registros).sort();
+  keys.forEach(k=>{
+    const r=registros[k]; const cal=calcDay(r);
+    doc.text(`${k} | ${r.jornada.replaceAll('_',' ')} | ${r.empresa||''}`, 10, y); y+=6;
+    doc.text(`Entradas/Salidas: ${r.fichajes.join(' • ')}`, 10, y); y+=6;
+    doc.text(`Horas normales: ${cal.normales} | Extras: ${cal.extras} | Sueldo: ${cal.sueldoDia.toFixed(2)} €`, 10, y); y+=8;
+    if(r.nota){ doc.text(`Nota: ${r.nota}`, 10, y); y+=8; }
   });
-  doc.save('historial.pdf');
+  doc.save("reporte.pdf");
 });
 
-// -------------------- INICIAL --------------------
 renderHistorial();
 </script>
 </body>
